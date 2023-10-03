@@ -1,0 +1,39 @@
+name: 'OS Update'
+
+# Defines the trigger for the workflow. In this case, it's set to manual trigger (`workflow_dispatch`)
+on:
+  workflow_dispatch:
+    inputs:
+      # Input for the manual trigger to capture the reason for running the workflow
+      reason:
+        description: 'Reason for run'     
+        required: false
+
+env:
+  SSH_USER: ${{ secrets.SSH_USER }}
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+# Defines a job named `os-update` within the workflow.
+jobs:
+  os-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Install necessary packages and set up SSH
+      - name: Install necessary packages, set up SSH and add server to known hosts
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install openssh-client -y
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+          eval $(ssh-agent -s)
+          ssh-add ~/.ssh/id_rsa
+
+      # Execute OS update on the remote EC2 instance
+      - name: OS Update
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.SSH_USER }}@${{ env.EC2_HOST }} "sudo apt-get update && sudo apt-get upgrade -y"
